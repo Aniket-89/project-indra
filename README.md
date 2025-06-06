@@ -187,5 +187,5 @@ MIT License – Free to use, modify, and distribute.
 
 ## ✈️ Maintained By
 
-[YourName or Team]  
-https://github.com/yourusername/project-name
+[Aniket]  
+[github](https://github.com/Aniket-89/project-indra)
