@@ -40,6 +40,55 @@ graph LR
 
 ---
 
+## 🧩 Dependencies
+
+### 📦 Raspberry Pi (Raspbian Bookworm Lite)
+
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install system packages
+sudo apt install -y python3-pip python3-venv screen gstreamer1.0-tools \
+gstreamer1.0-plugins-good gstreamer1.0-plugins-base gstreamer1.0-plugins-bad \
+gstreamer1.0-libav libgstreamer1.0-dev net-tools ffmpeg
+
+# Optional: Remove ModemManager to avoid PX4 USB port conflict
+sudo apt remove -y modemmanager
+```
+
+### 🐍 Setup Python Virtual Environment
+
+```bash
+# Create venv
+python3 -m venv ~/venv
+source ~/venv/bin/activate
+
+# Install MAVProxy
+pip install --upgrade pip
+pip install MAVProxy
+```
+
+### 🧪 Test MAVProxy
+
+```bash
+~/venv/bin/mavproxy.py --master=/dev/ttyACM0 --baudrate 115200
+```
+
+You should see MAVLink output after PX4 is connected via USB.
+
+---
+
+## 📦 Ground Station (Windows)
+
+Install:
+
+- **[Mission Planner](https://ardupilot.org/planner/docs/mission-planner-installation.html)**
+- **[GStreamer (Windows SDK)](https://gstreamer.freedesktop.org/download/)**  
+  (Install *Complete* or *Runtime* version)
+- **[ffmpeg](https://ffmpeg.org/download.html)** (optional)
+
+
 ## ⚙️ Raspberry Pi Setup
 
 ### 1. 🖥️ Static IP Configuration
@@ -157,51 +206,3 @@ MIT License. Use at your own risk in flight-critical systems.
 [Your Name or Team]  
 [GitHub Repo or Company URL]
 ---
-
-## 🧩 Dependencies
-
-### 📦 Raspberry Pi (Raspbian Bookworm Lite)
-
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install system packages
-sudo apt install -y python3-pip python3-venv screen gstreamer1.0-tools \
-gstreamer1.0-plugins-good gstreamer1.0-plugins-base gstreamer1.0-plugins-bad \
-gstreamer1.0-libav libgstreamer1.0-dev net-tools ffmpeg
-
-# Optional: Remove ModemManager to avoid PX4 USB port conflict
-sudo apt remove -y modemmanager
-```
-
-### 🐍 Setup Python Virtual Environment
-
-```bash
-# Create venv
-python3 -m venv ~/venv
-source ~/venv/bin/activate
-
-# Install MAVProxy
-pip install --upgrade pip
-pip install MAVProxy
-```
-
-### 🧪 Test MAVProxy
-
-```bash
-~/venv/bin/mavproxy.py --master=/dev/ttyACM0 --baudrate 115200
-```
-
-You should see MAVLink output after PX4 is connected via USB.
-
----
-
-## 📦 Ground Station (Windows)
-
-Install:
-
-- **[Mission Planner](https://ardupilot.org/planner/docs/mission-planner-installation.html)**
-- **[GStreamer (Windows SDK)](https://gstreamer.freedesktop.org/download/)**  
-  (Install *Complete* or *Runtime* version)
-- **[ffmpeg](https://ffmpeg.org/download.html)** (optional)
