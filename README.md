@@ -23,7 +23,7 @@ This project enables **bi-directional telemetry and FPV video transmission** usi
 graph LR
   FC[PX4 FC] -->|MAVLink USB| RPI[Raspberry Pi]
   Camera -->|CSI| RPI
-  RPI -. UDP via Wi-Fi .-> GCS[Ground Station (Mission Planner)]
+  RPI -. UDP via Wi-Fi .-> GCS[Ground Station ]
 ```
 
 - **PX4 → Pi**: MAVLink over USB (`/dev/ttyACM0`)
