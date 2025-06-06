@@ -203,6 +203,6 @@ MIT License. Use at your own risk in flight-critical systems.
 
 ## ✈️ Maintained By
 
-[Your Name or Team]  
-[GitHub Repo or Company URL]
+Aniket  
+https://github.com/Aniket-89/project-indra/
 ---
