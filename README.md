@@ -1,105 +1,74 @@
-# 🛰️ Long-Range FPV & Telemetry System using PX4 + Raspberry Pi
+# 🛰️ Long-Range FPV & Telemetry System (PX4 + Raspberry Pi)
 
-This project enables **bi-directional telemetry and FPV video transmission** using a Raspberry Pi 3, PX4 flight controller, and long-range Wi-Fi modules. It is designed for **low-latency field deployment**, ideal for drones with no internet access.
-
----
-
-## 📦 Hardware Used
-
-| Component              | Description                                 |
-|------------------------|---------------------------------------------|
-| Flight Controller      | PX4-based (e.g., CUAV X7)                   |
-| SBC                    | Raspberry Pi 3 (Raspbian Bookworm Lite)     |
-| Camera                 | Pi Camera 2 (CSI Interface)                 |
-| Wi-Fi Module (Client)  | BL-M8812CU2                                 |
-| Wi-Fi Module (AP)      | BL-M8197FH1                                 |
-| Ground Station         | Windows Laptop (Surface Pro)                |
+A robust, open-source system for **real-time FPV video and MAVLink telemetry** using a Raspberry Pi and PX4 flight controller. Designed for drone developers, field engineers, and UAV enthusiasts.
 
 ---
 
-## 🔧 Network Setup
+## 🚀 Project Goals
+
+- ✅ **Plug-and-Play OS Image** – Flash and fly. A custom Raspberry Pi OS that auto-starts telemetry and video links.
+- ✅ **Developer Mode** – Easy-to-install development environment.
+- ✅ **Open Source** – Transparent, customizable, and community-friendly.
+
+---
+
+## 📦 Hardware Requirements
+
+| Component            | Example / Details                      |
+|---------------------|----------------------------------------|
+| Flight Controller    | PX4 (CUAV X7 or similar)               |
+| SBC (Linux)          | Raspberry Pi 3 or 4 (64-bit OS)        |
+| Camera               | Pi Camera 2 (CSI) or USB UVC Camera    |
+| Wi-Fi Module (Client)| BL-M8812CU2 (5GHz)                     |
+| Wi-Fi AP Module      | BL-M8197FH1 or Router in AP mode       |
+| Ground Station       | Windows PC with Mission Planner        |
+
+---
+
+## 🛠️ System Overview
 
 ```mermaid
 graph LR
-  FC[PX4 FC] -->|MAVLink USB| RPI[Raspberry Pi]
-  Camera -->|CSI| RPI
-  RPI -. UDP via Wi-Fi .-> GCS[Ground Station]
+  PX4[Flight Controller (PX4)] -->|MAVLink USB| RPI[Raspberry Pi]
+  Camera -->|CSI/USB| RPI
+  RPI -. UDP Wi-Fi .-> GCS[Ground Station]
 ```
-
-- **PX4 → Pi**: MAVLink over USB (`/dev/ttyACM0`)
-- **Pi → GCS**: Telemetry (UDP 14550) + FPV video (UDP 5600)
 
 ---
 
-## 🛠️ Software Stack
+## 🌐 Network Configuration
 
-- [x] **MAVProxy** – Telemetry routing
-- [x] **GStreamer** – Live FPV streaming
-- [x] **ffmpeg** – Optional recording
-- [x] **Mission Planner** – Ground Control Station (GCS)
-
----
-
-## 🧩 Dependencies
-
-### 📦 Raspberry Pi (Raspbian Bookworm Lite)
-
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install system packages
-sudo apt install -y python3-pip python3-venv screen gstreamer1.0-tools \
-gstreamer1.0-plugins-good gstreamer1.0-plugins-base gstreamer1.0-plugins-bad \
-gstreamer1.0-libav libgstreamer1.0-dev net-tools ffmpeg
-
-# Optional: Remove ModemManager to avoid PX4 USB port conflict
-sudo apt remove -y modemmanager
-```
-
-### 🐍 Setup Python Virtual Environment
-
-```bash
-# Create venv
-python3 -m venv ~/venv
-source ~/venv/bin/activate
-
-# Install MAVProxy
-pip install --upgrade pip
-pip install MAVProxy
-```
-
-### 🧪 Test MAVProxy
-
-```bash
-~/venv/bin/mavproxy.py --master=/dev/ttyACM0 --baudrate 115200
-```
-
-You should see MAVLink output after PX4 is connected via USB.
+| Device        | Role          | Static IP         |
+|---------------|---------------|-------------------|
+| Raspberry Pi  | Drone-side SBC| `192.168.0.152`   |
+| Ground Station| GCS (Windows) | `192.168.0.150`   |
+| Wi-Fi AP      | Router/AP     | `192.168.0.1`     |
 
 ---
 
-## 📦 Ground Station (Windows)
+## 🔧 Wiring & Connections
 
-Install:
+- **PX4 → Raspberry Pi** via USB-C to USB-A cable
+- **Pi Camera** connected to **CSI port** on Pi
+- **Wi-Fi USB Dongle** connected to Pi
+- **Ground Station** connected to AP via Wi-Fi
 
-- **[Mission Planner](https://ardupilot.org/planner/docs/mission-planner-installation.html)**
-- **[GStreamer (Windows SDK)](https://gstreamer.freedesktop.org/download/)**  
-  (Install *Complete* or *Runtime* version)
-- **[ffmpeg](https://ffmpeg.org/download.html)** (optional)
+> ✅ Make sure to power the PX4 and Pi **independently but safely**.
 
+---
 
-## ⚙️ Raspberry Pi Setup
+## 🧪 Developer Setup
 
-### 1. 🖥️ Static IP Configuration
+### 1. Flash Raspberry Pi OS (Bookworm Lite)
 
-Edit netplan config:
+Download 64-bit Lite version from [raspberrypi.com](https://www.raspberrypi.com/software/operating-systems/)  
+Flash using [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 
-```bash
-sudo nano /etc/netplan/99-dhcp.yaml
-```
+---
 
-Paste:
+### 2. Configure Static IP
+
+Edit `/etc/netplan/99-dhcp.yaml`:
 
 ```yaml
 network:
@@ -108,50 +77,58 @@ network:
   wifis:
     wlan0:
       dhcp4: no
-      addresses:
-        - 192.168.0.152/24
+      addresses: [192.168.0.152/24]
       gateway4: 192.168.0.1
       nameservers:
         addresses: [8.8.8.8, 1.1.1.1]
       access-points:
-        "YOUR_WIFI_SSID": {}
+        "YOUR_SSID": {}
 ```
 
-Apply it:
-
+Then:
 ```bash
 sudo netplan apply
 ```
 
 ---
 
-### 2. 🧪 Telemetry Script – `start_mavproxy.sh`
+### 3. Install Dependencies
+
+```bash
+sudo apt update && sudo apt install -y python3-pip python3-venv screen \
+gstreamer1.0-tools gstreamer1.0-plugins-{good,bad,base} gstreamer1.0-libav \
+net-tools ffmpeg
+
+sudo apt remove -y modemmanager  # PX4 conflict
+```
+
+---
+
+### 4. Setup MAVProxy (Telemetry)
+
+```bash
+python3 -m venv ~/venv
+source ~/venv/bin/activate
+pip install --upgrade pip
+pip install MAVProxy
+```
+
+Create `start_mavproxy.sh`:
 
 ```bash
 #!/bin/bash
 sleep 20
 /home/da/venv/bin/python /home/da/venv/bin/mavproxy.py \
-  --master=/dev/ttyACM0 \
-  --baudrate 115200 \
-  --out=192.168.0.150:14550 \
-  --aircraft /home/da/mydrone \
+  --master=/dev/ttyACM0 --baudrate 115200 \
+  --out=192.168.0.150:14550 --aircraft /home/da/mydrone \
   >> /home/da/mavproxy.log 2>&1
-```
-
-Make executable:
-```bash
-chmod +x ~/start_mavproxy.sh
-```
-
-Add to crontab:
-```bash
-crontab -e
-@reboot /home/da/start_mavproxy.sh &
 ```
 
 ---
 
-### 3. 📹 FPV Streaming – `fpvstream.sh`
+### 5. Setup FPV Streaming
+
+Create `fpvstream.sh`:
 
 ```bash
 #!/bin/bash
@@ -161,24 +138,23 @@ gst-launch-1.0 libcamerasrc ! video/x-raw,width=1280,height=720,framerate=30/1 !
   rtph264pay config-interval=1 pt=96 ! udpsink host=192.168.0.150 port=5600
 ```
 
-Make executable:
-```bash
-chmod +x ~/fpvstream.sh
-```
+---
 
-Add to crontab:
+### 6. Auto Start Scripts (Crontab)
+
 ```bash
+crontab -e
+@reboot /home/da/start_mavproxy.sh &
 @reboot /home/da/fpvstream.sh &
 ```
 
 ---
 
-## 🧭 Ground Station (Windows)
+## 🎯 Ground Station Setup (Windows)
 
-- Set static IP: `192.168.0.150`
-- Run **Mission Planner**
-  - Go to **UDP** → Port `14550`
-- Run GStreamer to receive FPV:
+- Set static IP to `192.168.0.150`
+- Open **Mission Planner → UDP → Port 14550**
+- Use this GStreamer command to receive video:
 
 ```bash
 gst-launch-1.0 udpsrc port=5600 caps="application/x-rtp, encoding-name=H264, payload=96" ! \
@@ -187,22 +163,29 @@ rtph264depay ! avdec_h264 ! videoconvert ! autovideosink
 
 ---
 
-## 🚧 To Do
+## 📦 Planned Deliverables
 
-- [ ] Auto-restart on Wi-Fi loss
-- [ ] Add telemetry loss watchdog
-- [ ] Upgrade to Pi 4 for better encoding performance
+| Target         | Status   | Notes                                     |
+|----------------|----------|-------------------------------------------|
+| Plug & Play OS | 🚧 WIP    | Will provide `.img` file with services    |
+| Dev Scripts    | ✅ Done   | Crontab-based setup included              |
+| Docs           | ✅ Done   | This README                              |
+
+---
+
+## 👥 Contributing
+
+Want to help? Feel free to fork, open issues, or submit pull requests!
 
 ---
 
 ## 📄 License
 
-MIT License. Use at your own risk in flight-critical systems.
+MIT License – Free to use, modify, and distribute.
 
 ---
 
 ## ✈️ Maintained By
 
-Aniket  
-https://github.com/Aniket-89/project-indra/
----
+[YourName or Team]  
+https://github.com/yourusername/project-name
