@@ -29,7 +29,7 @@ A robust, open-source system for **real-time FPV video and MAVLink telemetry** u
 
 ```mermaid
 graph LR
-  PX4[Flight Controller (PX4)] -->|MAVLink USB| RPI[Raspberry Pi]
+  PX4[Flight Controller] -->|MAVLink USB| RPI[Raspberry Pi]
   Camera -->|CSI/USB| RPI
   RPI -. UDP Wi-Fi .-> GCS[Ground Station]
 ```
