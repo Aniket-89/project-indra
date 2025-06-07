@@ -103,14 +103,75 @@ sudo apt remove -y modemmanager  # PX4 conflict
 ```
 
 ---
+### 4. Setup Environment Variables 
+Create `.env` in /home/pi/mydrone directory:
 
-### 4. Setup MAVProxy (Telemetry)
+```bash
+nano /home/mydrone/.env
+```
+
+Paste the following:
+
+```bash
+# MAVProxy configuration
+MAVLINK_DEVICE=/dev/ttyACM0
+MAVLINK_BAUD=115200
+GCS_IP=192.168.0.150
+GCS_PORT=14550
+AIRCRAFT_PATH=/home/pi/mydrone
+
+# Video streaming
+VIDEO_WIDTH=1280
+VIDEO_HEIGHT=720
+VIDEO_BITRATE=4000000
+VIDEO_FPS=30
+VIDEO_PORT=5600
+```
+
+
+### 5. Setup MAVProxy (Telemetry)
 
 ```bash
 python3 -m venv ~/venv
 source ~/venv/bin/activate
 pip install --upgrade pip
 pip install MAVProxy
+```
+
+Create `/home/pi/start_mavproxy.sh`:
+
+```bash
+#!/bin/bash
+
+# Load environment variables
+set -o allexport
+source /home/pi/mydrone/.env
+set +o allexport
+
+LOGFILE="/home/da/mavproxy.log"
+
+echo "⏳ Waiting for /dev/ttyACM0..." | tee -a "$LOGFILE"
+while [ ! -e $MAVLINK_DEVICE ]; do sleep 2; done
+
+echo "⏳ Waiting for Wi-Fi..." | tee -a "$LOGFILE"
+until iw wlan0 link | grep -q "Connected"; do sleep 2; done
+
+echo "✅ PX4 and Wi-Fi ready. Starting MAVProxy..." | tee -a "$LOGFILE"
+/home/pi/venv/bin/python /home/pi/venv/bin/mavproxy.py \
+    --master=${MAVLINK_DEVICE} \
+    --baudrate=${MAVLINK_BAUD} \
+    --out=${GCS_IP}:${GCS_PORT} \
+    --aircraft=${AIRCRAFT_PATH} \
+    --daemon \
+    | tee -a "$LOGFILE"
+
+echo "❌ MAVProxy exited unexpectedly at $(date)" | tee -a "$LOGFILE"
+```
+
+Make executable:
+
+```bash
+chmod +x /home/pi/start_mavproxy.sh
 ```
 
 Create **Systemd Service** `/etc/systemd/system/mavproxy.service`:
@@ -122,11 +183,10 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=da
-ExecStart=/home/da/venv/bin/python /home/da/venv/bin/mavproxy.py \
-  --master=/dev/ttyACM0 --baudrate=115200 \
-  --out=192.168.0.150:14550 --aircraft /home/da/mydrone --daemon
-Restart=always
+user=pi
+EnvironmentFile=/home/pi/mydrone/.env
+ExecStart=/home/pi/start_mavproxy.sh
+Restart=on-failure
 RestartSec=10
 
 [Install]
@@ -144,31 +204,20 @@ sudo systemctl start mavproxy.service
 
 ---
 
-### 5. Setup FPV Streaming (GStreamer + Environment Variables)
-
-Create `.fpv_env` in home directory:
-
-```bash
-export VIDEO_WIDTH=1280
-export VIDEO_HEIGHT=720
-export VIDEO_FPS=30
-export VIDEO_BITRATE=800
-export STREAM_HOST=192.168.0.150
-export STREAM_PORT=5600
-```
+### 5. Setup FPV Streaming (GStreamer)
 
 Create `start_stream.sh`:
 
 ```bash
 #!/bin/bash
-source /home/da/.fpv_env
+source /home/pi/mydrone/.env
 
 # Only run if camera is connected
 if v4l2-ctl --list-devices | grep -q "/dev/video0"; then
   echo "🎥 Camera detected. Starting stream..."
   gst-launch-1.0 libcamerasrc ! video/x-raw,width=$VIDEO_WIDTH,height=$VIDEO_HEIGHT,framerate=$VIDEO_FPS/1 ! \
     videoconvert ! x264enc tune=zerolatency bitrate=$VIDEO_BITRATE speed-preset=ultrafast ! \
-    rtph264pay config-interval=1 pt=96 ! udpsink host=$STREAM_HOST port=$STREAM_PORT
+    rtph264pay config-interval=1 pt=96 ! udpsink host=$GCS_HOST port=$VIDEO_PORT
 else
   echo "🚫 Camera not found. Stream not started."
   exit 1
@@ -178,7 +227,7 @@ fi
 Make executable:
 
 ```bash
-chmod +x /home/da/start_stream.sh
+chmod +x /home/pi/start_stream.sh
 ```
 
 Create `/etc/systemd/system/fpvstream.service`:
@@ -189,9 +238,9 @@ Description=FPV Video Stream via GStreamer
 After=multi-user.target
 
 [Service]
-User=da
-EnvironmentFile=/home/da/.fpv_env
-ExecStart=/home/da/start_stream.sh
+user=pi
+EnvironmentFile=/home/pi/mydrone/.env
+ExecStart=/home/pi/start_stream.sh
 Restart=on-failure
 RestartSec=5
 
