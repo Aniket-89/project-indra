@@ -1,4 +1,4 @@
-# 🛰️ Long-Range FPV & Telemetry System (PX4 + Raspberry Pi)
+# 🚁️ Long-Range FPV & Telemetry System (PX4 + Raspberry Pi)
 
 A robust, open-source system for **real-time FPV video and MAVLink telemetry** using a Raspberry Pi and PX4 flight controller. Designed for drone developers, field engineers, and UAV enthusiasts.
 
@@ -14,14 +14,14 @@ A robust, open-source system for **real-time FPV video and MAVLink telemetry** u
 
 ## 📦 Hardware Requirements
 
-| Component            | Example / Details                      |
-|---------------------|----------------------------------------|
-| Flight Controller    | PX4 (CUAV X7 or similar)               |
-| SBC (Linux)          | Raspberry Pi 3 or 4 (64-bit OS)        |
-| Camera               | Pi Camera 2 (CSI) or USB UVC Camera    |
-| Wi-Fi Module (Client)| BL-M8812CU2 (5GHz)                     |
-| Wi-Fi AP Module      | BL-M8197FH1 or Router in AP mode       |
-| Ground Station       | Windows PC with Mission Planner        |
+| Component             | Example / Details                   |
+| --------------------- | ----------------------------------- |
+| Flight Controller     | PX4 (CUAV X7 or similar)            |
+| SBC (Linux)           | Raspberry Pi 3 or 4 (64-bit OS)     |
+| Camera                | Pi Camera 2 (CSI) or USB UVC Camera |
+| Wi-Fi Module (Client) | BL-M8812CU2 (5GHz)                  |
+| Wi-Fi AP Module       | BL-M8197FH1 or Router in AP mode    |
+| Ground Station        | Windows PC with Mission Planner     |
 
 ---
 
@@ -38,11 +38,11 @@ graph LR
 
 ## 🌐 Network Configuration
 
-| Device        | Role          | Static IP         |
-|---------------|---------------|-------------------|
-| Raspberry Pi  | Drone-side SBC| `192.168.0.152`   |
-| Ground Station| GCS (Windows) | `192.168.0.150`   |
-| Wi-Fi AP      | Router/AP     | `192.168.0.1`     |
+| Device         | Role           | Static IP       |
+| -------------- | -------------- | --------------- |
+| Raspberry Pi   | Drone-side SBC | `192.168.0.152` |
+| Ground Station | GCS (Windows)  | `192.168.0.150` |
+| Wi-Fi AP       | Router/AP      | `192.168.0.1`   |
 
 ---
 
@@ -61,8 +61,7 @@ graph LR
 
 ### 1. Flash Raspberry Pi OS (Bookworm Lite)
 
-Download 64-bit Lite version from [raspberrypi.com](https://www.raspberrypi.com/software/operating-systems/)  
-Flash using [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+Download 64-bit Lite version from [raspberrypi.com](https://www.raspberrypi.com/software/operating-systems/)Flash using [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 
 ---
 
@@ -86,6 +85,7 @@ network:
 ```
 
 Then:
+
 ```bash
 sudo netplan apply
 ```
@@ -113,44 +113,103 @@ pip install --upgrade pip
 pip install MAVProxy
 ```
 
-Create `start_mavproxy.sh`:
+Create **Systemd Service** `/etc/systemd/system/mavproxy.service`:
+
+```ini
+[Unit]
+Description=MAVProxy Service for Companion Computer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=da
+ExecStart=/home/da/venv/bin/python /home/da/venv/bin/mavproxy.py \
+  --master=/dev/ttyACM0 --baudrate=115200 \
+  --out=192.168.0.150:14550 --aircraft /home/da/mydrone --daemon
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
+sudo systemctl enable mavproxy.service
+sudo systemctl start mavproxy.service
+```
+
+---
+
+### 5. Setup FPV Streaming (GStreamer + Environment Variables)
+
+Create `.fpv_env` in home directory:
+
+```bash
+export VIDEO_WIDTH=1280
+export VIDEO_HEIGHT=720
+export VIDEO_FPS=30
+export VIDEO_BITRATE=800
+export STREAM_HOST=192.168.0.150
+export STREAM_PORT=5600
+```
+
+Create `start_stream.sh`:
 
 ```bash
 #!/bin/bash
-sleep 20
-/home/da/venv/bin/python /home/da/venv/bin/mavproxy.py \
-  --master=/dev/ttyACM0 --baudrate 115200 \
-  --out=192.168.0.150:14550 --aircraft /home/da/mydrone \
-  >> /home/da/mavproxy.log 2>&1
+source /home/da/.fpv_env
+
+# Only run if camera is connected
+if v4l2-ctl --list-devices | grep -q "/dev/video0"; then
+  echo "🎥 Camera detected. Starting stream..."
+  gst-launch-1.0 libcamerasrc ! video/x-raw,width=$VIDEO_WIDTH,height=$VIDEO_HEIGHT,framerate=$VIDEO_FPS/1 ! \
+    videoconvert ! x264enc tune=zerolatency bitrate=$VIDEO_BITRATE speed-preset=ultrafast ! \
+    rtph264pay config-interval=1 pt=96 ! udpsink host=$STREAM_HOST port=$STREAM_PORT
+else
+  echo "🚫 Camera not found. Stream not started."
+  exit 1
+fi
 ```
 
----
-
-### 5. Setup FPV Streaming
-
-Create `fpvstream.sh`:
+Make executable:
 
 ```bash
-#!/bin/bash
-sleep 10
-gst-launch-1.0 libcamerasrc ! video/x-raw,width=1280,height=720,framerate=30/1 ! \
-  videoconvert ! x264enc tune=zerolatency bitrate=800 speed-preset=ultrafast ! \
-  rtph264pay config-interval=1 pt=96 ! udpsink host=192.168.0.150 port=5600
+chmod +x /home/da/start_stream.sh
 ```
 
----
+Create `/etc/systemd/system/fpvstream.service`:
 
-### 6. Auto Start Scripts (Crontab)
+```ini
+[Unit]
+Description=FPV Video Stream via GStreamer
+After=multi-user.target
+
+[Service]
+User=da
+EnvironmentFile=/home/da/.fpv_env
+ExecStart=/home/da/start_stream.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
 
 ```bash
-crontab -e
-@reboot /home/da/start_mavproxy.sh &
-@reboot /home/da/fpvstream.sh &
+sudo systemctl daemon-reload
+sudo systemctl enable fpvstream.service
+sudo systemctl start fpvstream.service
 ```
 
 ---
 
-## 🎯 Ground Station Setup (Windows)
+## 🌟 Ground Station Setup (Windows)
 
 - Set static IP to `192.168.0.150`
 - Open **Mission Planner → UDP → Port 14550**
@@ -163,12 +222,12 @@ rtph264depay ! avdec_h264 ! videoconvert ! autovideosink
 
 ---
 
-## 📦 Planned Deliverables
+## 📦 Deliverables
 
 | Target         | Status   | Notes                                     |
 |----------------|----------|-------------------------------------------|
 | Plug & Play OS | 🚧 WIP    | Will provide `.img` file with services    |
-| Dev Scripts    | ✅ Done   | Crontab-based setup included              |
+| Dev Scripts    | ✅ Done   | Systemd-based setup included              |
 | Docs           | ✅ Done   | This README                              |
 
 ---
