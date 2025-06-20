@@ -21,7 +21,7 @@ A robust, open-source system for **real-time FPV video and MAVLink telemetry** u
 | Camera                | Pi Camera 2 (CSI) or USB UVC Camera |
 | Wi-Fi Module (Client) | BL-M8812CU2 (5GHz)                  |
 | Wi-Fi AP Module       | BL-M8197FH1 or Router in AP mode    |
-| Ground Station        | Windows PC with Mission Planner     |
+| Ground Station        | Windows PC with QGroundControl     |
 
 ---
 
@@ -30,7 +30,7 @@ A robust, open-source system for **real-time FPV video and MAVLink telemetry** u
 ```mermaid
 graph LR
   PX4[Flight Controller] -->|MAVLink USB| RPI[Raspberry Pi]
-  Camera -->|CSI/USB| RPI
+  Camera -->|Ethernet| RPI
   RPI -. UDP Wi-Fi .-> GCS[Ground Station]
 ```
 
@@ -40,7 +40,7 @@ graph LR
 
 | Device         | Role           | Static IP       |
 | -------------- | -------------- | --------------- |
-| Raspberry Pi   | Drone-side SBC | `192.168.0.152` |
+| Raspberry Pi   | Drone-side SBC | `192.168.0.151` |
 | Ground Station | GCS (Windows)  | `192.168.0.150` |
 | Wi-Fi AP       | Router/AP      | `192.168.0.1`   |
 
@@ -49,7 +49,7 @@ graph LR
 ## 🔧 Wiring & Connections
 
 - **PX4 → Raspberry Pi** via USB-C to USB-A cable
-- **Pi Camera** connected to **CSI port** on Pi
+- **SiYi a8 mini Camera** connected to **Ethernet** on Pi
 - **Wi-Fi USB Dongle** connected to Pi
 - **Ground Station** connected to AP via Wi-Fi
 
@@ -107,7 +107,7 @@ sudo apt remove -y modemmanager  # PX4 conflict
 Create `.env` in /home/pi/mydrone directory:
 
 ```bash
-nano /home/mydrone/.env
+nano /home/pi/mydrone/.env
 ```
 
 Paste the following:
@@ -121,9 +121,10 @@ GCS_PORT=14550
 AIRCRAFT_PATH=/home/pi/mydrone
 
 # Video streaming
+VIDEO_URL=rtsp://192.168.144.25:8554/main.264
 VIDEO_WIDTH=1280
 VIDEO_HEIGHT=720
-VIDEO_BITRATE=4000000
+VIDEO_BITRATE=1024
 VIDEO_FPS=30
 VIDEO_PORT=5600
 ```
@@ -212,16 +213,10 @@ Create `start_stream.sh`:
 #!/bin/bash
 source /home/pi/mydrone/.env
 
-# Only run if camera is connected
-if v4l2-ctl --list-devices | grep -q "/dev/video0"; then
-  echo "🎥 Camera detected. Starting stream..."
-  gst-launch-1.0 libcamerasrc ! video/x-raw,width=$VIDEO_WIDTH,height=$VIDEO_HEIGHT,framerate=$VIDEO_FPS/1 ! \
-    videoconvert ! x264enc tune=zerolatency bitrate=$VIDEO_BITRATE speed-preset=ultrafast ! \
-    rtph264pay config-interval=1 pt=96 ! udpsink host=$GCS_HOST port=$VIDEO_PORT
-else
-  echo "🚫 Camera not found. Stream not started."
-  exit 1
-fi
+gst-launch-1.0 rtspsrc location=rtsp://192.168.1.100:8554/main.265 latency=0 ! \
+rtph265depay ! rtph265pay config-interval=1 pt=96 mtu=1200 ! \
+udpsink host=192.168.0.150 port=5600
+
 ```
 
 Make executable:
@@ -261,13 +256,8 @@ sudo systemctl start fpvstream.service
 ## 🌟 Ground Station Setup (Windows)
 
 - Set static IP to `192.168.0.150`
-- Open **Mission Planner → UDP → Port 14550**
-- Use this GStreamer command to receive video:
-
-```bash
-gst-launch-1.0 udpsrc port=5600 caps="application/x-rtp, encoding-name=H264, payload=96" ! \
-rtph264depay ! avdec_h264 ! videoconvert ! autovideosink
-```
+- Open **QGC → UDP → Port 14550**
+- Wait for connection
 
 ---
 
