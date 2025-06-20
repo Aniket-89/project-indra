@@ -213,9 +213,9 @@ Create `start_stream.sh`:
 #!/bin/bash
 source /home/pi/mydrone/.env
 
-gst-launch-1.0 rtspsrc location=rtsp://192.168.1.100:8554/main.265 latency=0 ! \
+gst-launch-1.0 rtspsrc location=$VIDEO_URL latency=0 ! \
 rtph265depay ! rtph265pay config-interval=1 pt=96 mtu=1200 ! \
-udpsink host=192.168.0.150 port=5600
+udpsink host=$GCS_IP port=$VIDEO_PORT
 
 ```
 
