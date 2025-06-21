@@ -64,8 +64,18 @@ graph LR
 Download 64-bit Lite version from [raspberrypi.com](https://www.raspberrypi.com/software/operating-systems/)Flash using [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 
 ---
+### 2. Install Dependencies
 
-### 2. Configure Static IP
+```bash
+sudo apt update && sudo apt install -y python3-pip python3-venv screen \
+gstreamer1.0-tools gstreamer1.0-plugins-{good,bad,base} gstreamer1.0-libav \
+net-tools
+
+sudo apt remove -y modemmanager  # PX4 conflict
+```
+
+---
+### 3. Configure Static IP
 
 Edit `/etc/netplan/99-dhcp.yaml`:
 
@@ -92,17 +102,7 @@ sudo netplan apply
 
 ---
 
-### 3. Install Dependencies
 
-```bash
-sudo apt update && sudo apt install -y python3-pip python3-venv screen \
-gstreamer1.0-tools gstreamer1.0-plugins-{good,bad,base} gstreamer1.0-libav \
-net-tools ffmpeg
-
-sudo apt remove -y modemmanager  # PX4 conflict
-```
-
----
 ### 4. Setup Environment Variables 
 Create `.env` in /home/pi/mydrone directory:
 
