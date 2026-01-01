@@ -70,7 +70,223 @@ The transmission system acts as a **real-time embedded edge gateway**.
 ### 4.1 OS & Hardware Sanity Check
 
 Run:
+
 ```bash
 uname -a
 lscpu
 free -h
+```
+
+Verify:
+
+- CPU cores ≥ 4
+- RAM as expected
+- No kernel errors
+
+### 4.2 Interface Discovery (Do Not Assume Names)
+
+Run:
+
+```bash
+ip link show
+lsusb
+ls /dev/ttyUSB* /dev/ttyACM*
+dmesg | tail -n 50
+```
+
+Confirm:
+
+- Ethernet interface present
+- Wi‑Fi module detected
+- Serial interface for PX4 available
+
+### 4.3 Static IP Configuration
+
+Run (replace interface name with the discovered interface):
+
+```bash
+ip addr flush dev eth0
+ip addr add 192.168.1.10/24 dev eth0
+ip link set eth0 up
+```
+
+Validate:
+
+```bash
+ip addr show eth0
+ping 192.168.1.2
+```
+
+---
+
+## 5. Camera Validation (RTSP Ingest)
+
+Test RTSP stream locally before forwarding:
+
+```bash
+gst-launch-1.0 rtspsrc location=rtsp://CAMERA_IP latency=0 ! \
+  rtph265depay ! fakesink
+```
+
+Pass criteria:
+
+- Stream stable
+- No excessive CPU usage
+- No GStreamer errors
+
+---
+
+## 6. Video Forwarding Test (Core Function)
+
+Forward RTSP video to ground station:
+
+```bash
+gst-launch-1.0 rtspsrc location=rtsp://CAMERA_IP latency=0 ! \
+  rtph265depay ! h265parse ! \
+  rtph265pay config-interval=1 pt=96 ! \
+  udpsink host=192.168.1.2 port=5600 sync=false
+```
+
+On ground:
+
+- Open QGroundControl or VLC and listen on UDP port 5600
+
+Confirm continuous video
+
+Pass criteria:
+
+- Stable stream ≥ 10 minutes
+- No freezes > 1 second
+- CPU < 70%
+
+---
+
+## 7. MAVLink Telemetry & Control Bridge
+
+Identify serial port:
+
+```bash
+ls /dev/ttyUSB* /dev/ttyACM*
+```
+
+Start MAVLink bridge (example):
+
+```bash
+mavproxy.py \
+  --master=/dev/ttyUSB0 \
+  --baudrate 57600 \
+  --out=udp:192.168.1.2:14550
+```
+
+Verify in QGroundControl:
+
+- Heartbeat stable
+- Commands responsive
+- No drops under video load
+
+---
+
+## 8. Multicore Behavior Observation
+
+While video + MAVLink are running:
+
+```bash
+htop
+```
+
+Observe:
+
+- Load distribution across cores
+- No single core pegged at 100%
+
+Optional CPU pinning:
+
+```bash
+taskset -c 1 <video_pipeline>
+taskset -c 2 <mavlink_bridge>
+```
+
+Goal: isolate real-time workloads.
+
+---
+
+## 9. Stress Test (Required)
+
+Run simultaneously:
+- Video forwarding
+- MAVLink bridge
+- Continuous ping
+- Optional UDP iperf
+
+```bash
+ping 192.168.1.2
+```
+
+Duration:
+Minimum 20–30 minutes
+
+Monitor:
+
+- CPU throttling
+- Thermal behavior
+- Wi‑Fi stability
+- USB resets
+
+---
+
+## 10. Logging (Evidence Collection)
+
+Start system logging:
+
+```bash
+vmstat 1 > vmstat.log &
+iostat -xz 1 > iostat.log &
+dmesg -w > dmesg.log &
+```
+
+Logs are used for:
+
+- Hardware qualification
+- PCB design decisions
+- Performance comparison
+
+---
+
+## 11. Evaluation Outcome
+
+Each board is classified as:
+
+PASS
+- Stable video & MAVLink
+- Acceptable latency
+- Thermal & CPU headroom
+
+BORDERLINE
+- Works but requires tuning
+- Potential PCB or RF improvements needed
+
+FAIL
+- Packet drops
+- Overheating
+- USB / Wi‑Fi instability
+- Requires excessive tuning to survive
+
+---
+
+## 12. Design Intent (Future Compatibility)
+
+This transmission system is intentionally designed to support:
+
+- Multi-drone fleet systems
+- Secure transport layers
+- Alternate radios (LTE / 5G / mesh)
+- Metadata-based connected vision systems (AR overlays)
+
+The transmission module is the core backbone, not the UI layer.
+
+---
+
+## 13. One-Line Summary
+
+A real-time embedded edge transmission system that reliably forwards video, telemetry,
+and control data over IP, designed to scale into fleet and connected-vision platforms.
