@@ -65,6 +65,74 @@ The transmission system acts as a **real-time embedded edge gateway**.
 
 ---
 
+## Network Subnet Separation (Important)
+
+This system uses **two separate network subnets**:
+
+- Ethernet (eth0): Camera-only subnet
+- Wi-Fi (wlan0): Ground station subnet
+
+The companion board is dual-homed and acts as an L3 gateway.
+
+No bridging or NAT is required:
+- RTSP is consumed locally on eth0
+- Video and MAVLink are forwarded via wlan0
+
+This separation avoids broadcast issues and simplifies debugging.
+
+
+That one block makes you look very senior.
+
+6. How the actual commands work with two subnets
+RTSP ingest (Ethernet)
+rtsp://192.168.10.100/stream
+
+
+This never leaves eth0.
+
+UDP send (Wi-Fi)
+udpsink host=192.168.1.2 port=5600
+
+
+Linux automatically routes this via wlan0
+as long as wlan0 has the default route.
+
+7. One thing to double-check tomorrow (don’t skip)
+
+Run:
+
+ip route
+
+
+You want to see:
+
+default via 192.168.1.1 dev wlan0
+192.168.10.0/24 dev eth0
+
+
+If default route points to eth0 → fix it:
+
+ip route del default
+ip route add default via 192.168.1.1 dev wlan0
+
+
+This is the #1 cause of “it should work but doesn’t” bugs.
+
+8. MAVLink is unaffected by camera subnet
+
+MAVLink:
+
+Serial ↔ UDP
+
+Lives entirely on Wi-Fi subnet
+
+Ethernet subnet irrelevant
+
+So no special handling needed 
+
+
+---
+
 ## 4. Bring-Up Procedure
 
 ### 4.1 OS & Hardware Sanity Check
